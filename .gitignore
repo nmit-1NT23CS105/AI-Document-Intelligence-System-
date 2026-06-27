@@ -1,0 +1,16 @@
+__pycache__/
+.pytest_cache/
+.venv/
+.agents/
+.codex/
+.env
+*.db
+*.log
+chromadb/
+uploads/*
+!uploads/.gitkeep
+phase6-ui*.png
+qa-*.png
+.chrome-*/
+phase6_ui_check.db
+.chrome-phase6-profile*/

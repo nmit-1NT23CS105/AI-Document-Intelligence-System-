@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Document Intelligence System</title>
+    <link rel="stylesheet" href="/static/css/app.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">DI</div>
+          <div>
+            <h1>DocIntel</h1>
+            <p>AI Document Intelligence System</p>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="Workspace">
+          <button class="nav-item active" type="button" data-view="dashboard"><span aria-hidden="true">H</span>Dashboard</button>
+          <button class="nav-item" type="button" data-view="documents"><span aria-hidden="true">D</span>Documents</button>
+        </nav>
+
+        <section class="account-panel" aria-label="Account">
+          <div id="session-card" class="session-card">
+            <div>
+              <span id="session-label">Account</span>
+              <small id="session-email">Sign in to use documents</small>
+            </div>
+            <button class="button subtle" id="account-button" type="button">Login</button>
+            <button class="button danger hidden" id="logout-button" type="button">Logout</button>
+          </div>
+        </section>
+
+        <section class="sidebar-stats" aria-label="Workspace stats">
+          <dl>
+            <div><dt>Documents</dt><dd id="metric-documents">0</dd></div>
+            <div><dt>Selected</dt><dd id="metric-selected">None</dd></div>
+            <div><dt>Category</dt><dd id="metric-category">None</dd></div>
+          </dl>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="section-label">Workspace</p>
+            <h2 id="view-title">Dashboard</h2>
+          </div>
+          <form id="global-search-form" class="command-bar" role="search">
+            <input id="global-query" type="search" placeholder="Search documents, snippets, answers..." autocomplete="off" />
+            <button class="icon-button" type="submit" aria-label="Search">S</button>
+          </form>
+          <div class="status-strip">
+            <span id="auth-status">Not signed in</span>
+            <span id="document-count">0 documents</span>
+          </div>
+        </header>
+
+        <section class="view-panel active" data-panel="dashboard">
+          <div class="dashboard-layout">
+            <section class="panel intake-panel">
+              <div class="panel-heading">
+                <div>
+                  <h3>Extraction Queue</h3>
+                  <span id="extraction-health">Idle</span>
+                </div>
+                <button class="button subtle" id="refresh-documents" type="button">Refresh</button>
+              </div>
+              <form id="upload-form" class="upload-form">
+                <label id="upload-dropzone" class="dropzone" for="upload-file">
+                  <input id="upload-file" type="file" multiple accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
+                  <span class="dropzone-icon" aria-hidden="true">^</span>
+                  <strong>PDF or DOCX intake</strong>
+                  <small id="upload-file-name">Select one or more files</small>
+                </label>
+                <div class="upload-actions">
+                  <button class="button primary" id="upload-button" type="submit">Upload Selected Files</button>
+                  <ul id="selected-files-list" class="selected-files-list"></ul>
+                </div>
+              </form>
+              <div id="queue-list" class="queue-list"></div>
+            </section>
+
+            <section class="panel table-panel">
+              <div class="panel-heading table-heading">
+                <div>
+                  <h3>Documents</h3>
+                  <span id="table-count">0 total</span>
+                </div>
+                <div class="table-tools">
+                  <input id="document-filter" type="search" placeholder="Filter documents" autocomplete="off" />
+                  <select id="category-filter" aria-label="Category filter">
+                    <option value="">All categories</option>
+                  </select>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Category</th>
+                      <th>Pages</th>
+                      <th>Quality</th>
+                      <th>Added</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="documents-table"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="panel inspector-panel">
+              <div class="panel-heading">
+                <div>
+                  <h3>Preview</h3>
+                  <span id="preview-status">No document selected</span>
+                </div>
+                <button class="button danger" id="delete-document" type="button" disabled>Delete</button>
+              </div>
+              <div class="inspector-tabs" role="tablist" aria-label="Document inspector">
+                <button class="inspector-tab active" type="button" data-inspector-tab="preview">Preview</button>
+                <button class="inspector-tab" type="button" data-inspector-tab="metadata">Metadata</button>
+                <button class="inspector-tab" type="button" data-inspector-tab="text">Text</button>
+              </div>
+              <div class="inspector-pane active" data-inspector-pane="preview">
+                <article id="document-preview" class="document-preview empty-state">Select a document to inspect extracted content.</article>
+              </div>
+              <div class="inspector-pane" data-inspector-pane="metadata">
+                <dl class="metadata-list" id="metadata-list"></dl>
+              </div>
+              <div class="inspector-pane" data-inspector-pane="text">
+                <pre id="document-text" class="document-text">Select a document to inspect extracted text.</pre>
+              </div>
+            </section>
+
+            <section class="panel work-panel">
+              <div class="work-tabs" role="tablist" aria-label="AI tools">
+                <button class="work-tab active" type="button" data-work-tab="search">Semantic Search</button>
+                <button class="work-tab" type="button" data-work-tab="chat">Chat</button>
+                <button class="work-tab" type="button" data-work-tab="summary">Summary</button>
+              </div>
+              <div class="work-pane active" data-work-pane="search">
+                <div class="ai-tool-grid search-tool-grid">
+                  <form id="search-form" class="query-form stacked ai-control-panel">
+                    <label>
+                      Search query
+                      <input id="search-query" type="search" placeholder="Search for leave policy, invoice total, renewal date..." required />
+                    </label>
+                    <div class="control-grid two">
+                      <label>
+                        Document
+                        <select id="search-document">
+                          <option value="">All documents</option>
+                        </select>
+                      </label>
+                      <label>
+                        Category
+                        <select id="search-category-filter">
+                          <option value="">All categories</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="control-grid two">
+                      <label>
+                        Sort
+                        <select id="search-sort" aria-label="Search result sort">
+                          <option value="relevance">Relevance</option>
+                          <option value="newest">Newest document</option>
+                          <option value="filename">Filename</option>
+                        </select>
+                      </label>
+                      <label>
+                        Results
+                        <input id="search-limit" class="small-input" type="number" min="1" max="20" value="8" aria-label="Search result limit" />
+                      </label>
+                    </div>
+                    <div class="prompt-row" aria-label="Search presets">
+                      <button class="chip-button" type="button" data-search-preset="deadlines dates renewal expiry">Deadlines</button>
+                      <button class="chip-button" type="button" data-search-preset="payment amount invoice total fee">Amounts</button>
+                      <button class="chip-button" type="button" data-search-preset="risk liability termination obligation">Risks</button>
+                    </div>
+                    <button class="button primary" type="submit">Run Semantic Search</button>
+                  </form>
+                  <div class="ai-output-panel search-output-panel">
+                    <div id="search-results-header" class="results-header">
+                      <div>
+                        <strong>Search Results</strong>
+                        <span id="search-stats">Ready to search indexed document text.</span>
+                      </div>
+                      <span class="chip">Grounded snippets</span>
+                    </div>
+                    <div id="search-results" class="result-list empty-state">Search results will appear here.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="work-pane" data-work-pane="chat">
+                <div class="ai-tool-grid">
+                  <form id="chat-form" class="query-form stacked ai-control-panel">
+                    <label>
+                      Scope
+                      <select id="chat-document">
+                        <option value="">All documents</option>
+                      </select>
+                    </label>
+                    <label>
+                      Answer style
+                      <select id="chat-mode">
+                        <option value="direct">Direct answer</option>
+                        <option value="analyst">Analyst brief</option>
+                        <option value="risk">Risk review</option>
+                      </select>
+                    </label>
+                    <label>
+                      Question
+                      <textarea id="chat-question" rows="5" placeholder="Ask for dates, obligations, totals, risks, or policy details..." required></textarea>
+                    </label>
+                    <div class="prompt-row" aria-label="Suggested questions">
+                      <button class="chip-button" type="button" data-chat-prompt="What are the key obligations?">Obligations</button>
+                      <button class="chip-button" type="button" data-chat-prompt="What dates or deadlines are mentioned?">Dates</button>
+                      <button class="chip-button" type="button" data-chat-prompt="What amounts or totals are mentioned?">Amounts</button>
+                    </div>
+                    <div class="action-row">
+                      <button class="button primary" type="submit">Ask Question</button>
+                      <button class="button subtle" id="chat-clear" type="button">Clear</button>
+                    </div>
+                    <span class="tool-note">Answers are grounded in extracted document text.</span>
+                  </form>
+                  <div class="ai-output-panel">
+                    <div class="ai-output-header">
+                      <div>
+                        <strong>Grounded Chat</strong>
+                        <span id="chat-scope-note">No question asked yet.</span>
+                      </div>
+                      <button class="button subtle" id="chat-copy" type="button">Copy answer</button>
+                    </div>
+                    <div id="chat-thread" class="chat-thread">
+                      <article class="assistant-message">Ask a question to see a grounded answer with citations.</article>
+                    </div>
+                    <div id="chat-answer" class="answer-box hidden">Chat answers will appear here.</div>
+                    <div id="chat-citation-panel" class="citation-panel">
+                      <div class="citation-panel-heading">
+                        <strong>Citations</strong>
+                        <span>Source chunks used by the answer</span>
+                      </div>
+                      <div id="chat-citations" class="citation-list">
+                        <span class="row-meta">Citations will appear after an answer.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="work-pane" data-work-pane="summary">
+                <div class="ai-tool-grid">
+                  <form id="summary-form" class="query-form stacked ai-control-panel">
+                    <label>
+                      Document
+                      <select id="summary-document" required>
+                        <option value="">Choose a document</option>
+                      </select>
+                    </label>
+                    <label>
+                      Format
+                      <select id="summary-format">
+                        <option value="executive">Executive brief</option>
+                        <option value="detailed">Detailed review</option>
+                        <option value="actions">Action checklist</option>
+                      </select>
+                    </label>
+                    <label>
+                      Key points
+                      <input id="summary-points" class="small-input" type="number" min="1" max="10" value="5" aria-label="Maximum key points" />
+                    </label>
+                    <div id="summary-actions" class="prompt-row">
+                      <button class="chip-button" type="button" data-summary-points="3">Brief</button>
+                      <button class="chip-button" type="button" data-summary-points="5">Balanced</button>
+                      <button class="chip-button" type="button" data-summary-points="8">Detailed</button>
+                    </div>
+                    <button class="button primary" type="submit">Generate Summary</button>
+                  </form>
+                  <div class="ai-output-panel">
+                    <div class="ai-output-header">
+                      <div>
+                        <strong>Summary Studio</strong>
+                        <span id="summary-status-note">Choose a document and summary format.</span>
+                      </div>
+                      <button class="button subtle" id="summary-copy" type="button">Copy summary</button>
+                    </div>
+                    <dl id="summary-insights" class="summary-insights">
+                      <div><dt>Status</dt><dd>Choose a document</dd></div>
+                      <div><dt>Format</dt><dd>Executive brief</dd></div>
+                      <div><dt>Source</dt><dd>Not selected</dd></div>
+                    </dl>
+                    <div id="summary-output" class="answer-box">Document summaries will appear here.</div>
+                    <div id="summary-outline" class="summary-outline">
+                      <div class="outline-block">
+                        <span class="outline-index">1</span>
+                        <div>
+                          <strong>Outline</strong>
+                          <p>Generated structure will appear after summarization.</p>
+                        </div>
+                      </div>
+                    </div>
+                    <ul id="summary-keypoints" class="keypoint-list"></ul>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view-panel" data-panel="documents">
+          <div class="focused-layout">
+            <section class="panel table-panel">
+              <div class="panel-heading table-heading">
+                <div>
+                  <h3>Document Library</h3>
+                  <span id="library-count">0 indexed</span>
+                </div>
+              </div>
+              <div id="recent-documents" class="document-list empty-state">Sign in and upload documents to begin.</div>
+            </section>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+    <section id="auth-dialog" class="auth-dialog hidden" aria-label="Authentication">
+      <div class="auth-dialog-card">
+        <div class="dialog-heading">
+          <div>
+            <h2>Account Access</h2>
+            <p>Login or create an account to manage your document workspace.</p>
+          </div>
+          <button class="icon-button" id="auth-close" type="button" aria-label="Close account dialog">X</button>
+        </div>
+        <div class="auth-tabs" role="tablist" aria-label="Authentication mode">
+          <button class="auth-tab active" type="button" data-auth-tab="login">Login</button>
+          <button class="auth-tab" type="button" data-auth-tab="register">Register</button>
+        </div>
+        <form id="login-form" class="auth-form" autocomplete="on">
+          <label>
+            Email
+            <input id="login-email" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Password
+            <input id="login-password" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="button primary full" type="submit">Login</button>
+        </form>
+        <form id="register-form" class="auth-form hidden" autocomplete="on">
+          <label>
+            Name
+            <input id="register-name" type="text" autocomplete="name" minlength="2" required />
+          </label>
+          <label>
+            Email
+            <input id="register-email" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Password
+            <input id="register-password" type="password" autocomplete="new-password" minlength="8" required />
+          </label>
+          <button class="button primary full" type="submit">Create account</button>
+        </form>
+      </div>
+    </section>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/static/js/app.js" defer></script>
+  </body>
+</html>
