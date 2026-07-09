@@ -4,6 +4,7 @@ import re
 
 from sqlalchemy.orm import Session
 
+from app.ai.llm import get_llm_client
 from app.database.models import ChatHistory, User
 from app.schemas.chat import ChatCitation
 from app.services.document_service import get_user_document
@@ -87,6 +88,64 @@ def _best_answer_sentence(question: str, matches: list[SearchMatch]) -> tuple[st
     return best_sentence, best_match
 
 
+def _citations_from_matches(matches: list[SearchMatch]) -> list[ChatCitation]:
+    citations: list[ChatCitation] = []
+    seen: set[tuple[int, int]] = set()
+
+    for match in matches:
+        key = (match.document_id, match.chunk_index)
+        if key in seen:
+            continue
+        seen.add(key)
+        citations.append(
+            ChatCitation(
+                document_id=match.document_id,
+                filename=match.filename,
+                chunk_index=match.chunk_index,
+            )
+        )
+
+    return citations
+
+
+def _format_chat_context(matches: list[SearchMatch]) -> str:
+    return "\n\n".join(
+        (
+            f"[Source {index}: {match.filename}, chunk {match.chunk_index}, "
+            f"score {match.score}]\n{match.snippet}"
+        )
+        for index, match in enumerate(matches, start=1)
+    )
+
+
+def _llm_answer_question(question: str, matches: list[SearchMatch]) -> tuple[str, list[ChatCitation]] | None:
+    llm_client = get_llm_client()
+    if llm_client is None or not matches:
+        return None
+
+    system_prompt = (
+        "You answer questions using only the provided document context. "
+        "If the context does not contain the answer, say exactly: "
+        f"{NO_ANSWER} Keep answers concise and do not invent facts."
+    )
+    user_prompt = (
+        f"Question:\n{question}\n\n"
+        f"Document context:\n{_format_chat_context(matches)}\n\n"
+        "Answer using the document context only."
+    )
+
+    try:
+        answer = llm_client.generate_text(system_prompt, user_prompt).strip()
+    except Exception:
+        return None
+
+    if not answer:
+        return None
+    if answer == NO_ANSWER:
+        return answer, []
+    return answer, _citations_from_matches(matches)
+
+
 def answer_question(
     db: Session,
     user: User,
@@ -104,17 +163,21 @@ def answer_question(
         limit=limit,
         document_id=document_id,
     )
-    answer, match = _best_answer_sentence(question=question, matches=matches)
-    citations: list[ChatCitation] = []
 
-    if match is not None:
-        citations.append(
-            ChatCitation(
-                document_id=match.document_id,
-                filename=match.filename,
-                chunk_index=match.chunk_index,
+    llm_result = _llm_answer_question(question=question, matches=matches)
+    if llm_result is not None:
+        answer, citations = llm_result
+    else:
+        answer, match = _best_answer_sentence(question=question, matches=matches)
+        citations = []
+        if match is not None:
+            citations.append(
+                ChatCitation(
+                    document_id=match.document_id,
+                    filename=match.filename,
+                    chunk_index=match.chunk_index,
+                )
             )
-        )
 
     history_document_id = citations[0].document_id if citations else document_id
     if history_document_id is not None:

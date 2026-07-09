@@ -22,6 +22,12 @@ class Settings:
     chat_retrieval_limit: int = 4
     classifier_provider: str = "local"
     summary_sentence_count: int = 2
+    llm_provider: str = "none"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
+    gemini_api_base_url: str = "https://generativelanguage.googleapis.com/v1beta/interactions"
+    llm_temperature: float = 0.2
+    llm_timeout_seconds: int = 20
     jwt_secret_key: str = "change-this-secret-key-for-local-development-only"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
@@ -119,6 +125,40 @@ def get_settings() -> Settings:
             _env_value(
                 "SUMMARY_SENTENCE_COUNT",
                 str(Settings.summary_sentence_count),
+                env_file_values,
+            )
+        ),
+        llm_provider=_env_value(
+            "LLM_PROVIDER",
+            Settings.llm_provider,
+            env_file_values,
+        ),
+        gemini_api_key=_env_value(
+            "GEMINI_API_KEY",
+            Settings.gemini_api_key,
+            env_file_values,
+        ),
+        gemini_model=_env_value(
+            "GEMINI_MODEL",
+            Settings.gemini_model,
+            env_file_values,
+        ),
+        gemini_api_base_url=_env_value(
+            "GEMINI_API_BASE_URL",
+            Settings.gemini_api_base_url,
+            env_file_values,
+        ),
+        llm_temperature=float(
+            _env_value(
+                "LLM_TEMPERATURE",
+                str(Settings.llm_temperature),
+                env_file_values,
+            )
+        ),
+        llm_timeout_seconds=int(
+            _env_value(
+                "LLM_TIMEOUT_SECONDS",
+                str(Settings.llm_timeout_seconds),
                 env_file_values,
             )
         ),

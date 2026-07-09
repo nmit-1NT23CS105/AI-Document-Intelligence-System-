@@ -19,9 +19,21 @@ Open `http://127.0.0.1:8000`.
 - Extract readable text, reject empty/scanned PDFs when OCR is unavailable, and remove common scanner watermark artifacts.
 - Classify documents into categories such as Invoice, Contract, Policy, Report, Resume, Research Paper, Manual, or Other.
 - Chunk and index extracted text for local semantic search.
-- Chat over uploaded content with citations.
-- Generate short summaries and key points.
+- Chat over uploaded content with citations, with optional Gemini-powered RAG answers.
+- Generate short summaries and key points, with optional Gemini-powered summaries.
 - Use the advanced dashboard for upload state, filters, preview, metadata, search, chat, and summary workflows.
+
+## Optional Gemini LLM
+
+The app works without an LLM by using local retrieval, sentence matching, and extractive summaries. To enable Google Gemini for generated chat answers and summaries, create a local `.env` file from `.env.example` and set:
+
+```env
+LLM_PROVIDER="gemini"
+GEMINI_API_KEY="your-google-ai-studio-key"
+GEMINI_MODEL="gemini-3.5-flash"
+```
+
+Keep real API keys in `.env` only. Do not commit them to GitHub.
 
 ## OCR Note
 

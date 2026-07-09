@@ -23,6 +23,8 @@ def semantic_search(
         user=current_user,
         query=payload.query,
         limit=payload.limit,
+        document_id=payload.document_id,
+        category=payload.category,
     )
     return SearchResponse(
         results=[
@@ -32,6 +34,11 @@ def semantic_search(
                 chunk_index=result.chunk_index,
                 snippet=result.snippet,
                 score=result.score,
+                category=result.category,
+                file_type=result.file_type,
+                highlights=result.highlights,
+                match_type=result.match_type,
+                relevance_label=result.relevance_label,
             )
             for result in results
         ]

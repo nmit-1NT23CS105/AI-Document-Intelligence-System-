@@ -192,8 +192,16 @@
                         <strong>Search Results</strong>
                         <span id="search-stats">Ready to search indexed document text.</span>
                       </div>
-                      <span class="chip">Grounded snippets</span>
+                      <div class="results-actions">
+                        <span class="chip">Grounded snippets</span>
+                        <button class="button subtle" id="search-copy" type="button">Copy results</button>
+                      </div>
                     </div>
+                    <dl id="search-insights" class="search-insights">
+                      <div><dt>Matches</dt><dd>0</dd></div>
+                      <div><dt>Documents</dt><dd>0</dd></div>
+                      <div><dt>Top score</dt><dd>n/a</dd></div>
+                    </dl>
                     <div id="search-results" class="result-list empty-state">Search results will appear here.</div>
                   </div>
                 </div>

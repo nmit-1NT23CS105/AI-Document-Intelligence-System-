@@ -110,6 +110,79 @@ def test_search_returns_semantic_matches_for_authenticated_user(client):
     assert "paid leave days" in results[0]["snippet"]
 
 
+def test_search_can_be_scoped_and_returns_enriched_match_context(client):
+    headers = _auth_headers(client)
+    _upload_docx(
+        client,
+        headers,
+        "leave-policy.docx",
+        "Employees may take paid leave days for vacation and personal time.",
+    )
+    invoice_response = _upload_docx(
+        client,
+        headers,
+        "invoice.docx",
+        "Invoice number 42 has a payment due date in April. The invoice total is 1200 dollars.",
+    )
+
+    search_response = client.post(
+        "/search",
+        headers=headers,
+        json={
+            "query": "payment due date",
+            "limit": 5,
+            "document_id": invoice_response.json()["id"],
+        },
+    )
+
+    assert search_response.status_code == 200
+    results = search_response.json()["results"]
+    assert results
+    assert {result["document_id"] for result in results} == {invoice_response.json()["id"]}
+    assert results[0]["filename"] == "invoice.docx"
+    assert results[0]["category"]
+    assert results[0]["file_type"] == "docx"
+    assert results[0]["match_type"] in {"Exact phrase", "Keyword + semantic"}
+    assert results[0]["relevance_label"] in {"High", "Medium"}
+    assert {"payment", "due", "date"}.issubset(set(results[0]["highlights"]))
+
+
+def test_search_returns_focused_snippet_around_matching_terms(client, monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("CHUNK_SIZE_WORDS", "240")
+    monkeypatch.setenv("CHUNK_OVERLAP_WORDS", "20")
+    get_settings.cache_clear()
+
+    headers = _auth_headers(client)
+    filler_before = " ".join(f"before{i}" for i in range(80))
+    filler_after = " ".join(f"after{i}" for i in range(80))
+    upload_response = _upload_docx(
+        client,
+        headers,
+        "contract.docx",
+        f"{filler_before} critical renewal date is 31 March 2027 with automatic extension {filler_after}",
+    )
+
+    search_response = client.post(
+        "/search",
+        headers=headers,
+        json={
+            "query": "critical renewal date",
+            "limit": 1,
+            "document_id": upload_response.json()["id"],
+        },
+    )
+
+    assert search_response.status_code == 200
+    result = search_response.json()["results"][0]
+    assert "critical renewal date" in result["snippet"]
+    assert result["snippet"].startswith("...")
+    assert result["snippet"].endswith("...")
+    assert len(result["snippet"]) < 420
+    assert result["match_type"] == "Exact phrase"
+
+
 def test_search_is_user_scoped_and_delete_removes_indexed_chunks(client):
     ada_headers = _auth_headers(client, "ada@example.com")
     bob_headers = _auth_headers(client, "bob@example.com")

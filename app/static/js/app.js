@@ -8,6 +8,7 @@ const state = {
   documentFilter: "",
   categoryFilter: "",
   lastSearchRows: [],
+  lastSearchText: "",
   lastChatAnswer: "",
   lastSummaryText: "",
   busy: false,
@@ -32,7 +33,9 @@ const elements = {
   searchCategoryFilter: document.getElementById("search-category-filter"),
   searchSort: document.getElementById("search-sort"),
   searchStats: document.getElementById("search-stats"),
+  searchInsights: document.getElementById("search-insights"),
   searchResults: document.getElementById("search-results"),
+  searchCopy: document.getElementById("search-copy"),
   chatDocument: document.getElementById("chat-document"),
   chatMode: document.getElementById("chat-mode"),
   summaryDocument: document.getElementById("summary-document"),
@@ -74,6 +77,10 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function escapeRegExp(value) {
+  return String(value ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function formatDate(value) {
   if (!value) return "Unknown";
   return new Date(value).toLocaleString();
@@ -87,6 +94,13 @@ function formatScore(value) {
   const score = Number(value || 0);
   if (!Number.isFinite(score) || score <= 0) return "n/a";
   return score.toFixed(score >= 10 ? 0 : 2);
+}
+
+function relevanceTone(label) {
+  const normalized = String(label || "").toLowerCase();
+  if (normalized === "high") return "success";
+  if (normalized === "medium") return "warn";
+  return "";
 }
 
 function setSelectValue(select, value) {
@@ -447,6 +461,48 @@ async function openDocument(documentId) {
   activateInspectorTab("preview");
 }
 
+function renderSearchInsights(sourceRows = [], visibleRows = []) {
+  const rows = Array.isArray(visibleRows) ? visibleRows : [];
+  const documentCount = new Set(rows.map((row) => row.document_id).filter(Boolean)).size;
+  const topScore = rows.length ? Math.max(...rows.map((row) => Number(row.score || 0))) : 0;
+  const strongMatches = rows.filter((row) => String(row.relevance_label || "").toLowerCase() === "high").length;
+
+  elements.searchInsights.innerHTML = `
+    <div><dt>Matches</dt><dd>${rows.length}/${sourceRows.length || 0}</dd></div>
+    <div><dt>Documents</dt><dd>${documentCount}</dd></div>
+    <div><dt>Top score</dt><dd>${escapeHtml(formatScore(topScore))}</dd></div>
+    <div><dt>High signal</dt><dd>${strongMatches}</dd></div>
+  `;
+}
+
+function renderHighlightedSnippet(snippet, highlights = []) {
+  const safeSnippet = escapeHtml(snippet || "");
+  const terms = [...new Set((highlights || []).map((term) => String(term || "").trim()).filter(Boolean))]
+    .sort((left, right) => right.length - left.length)
+    .slice(0, 8);
+
+  if (!terms.length) return safeSnippet;
+
+  const expression = new RegExp(`\\b(${terms.map(escapeRegExp).join("|")})\\b`, "gi");
+  return safeSnippet.replace(expression, "<mark>$1</mark>");
+}
+
+function formatSearchCopyText(rows = []) {
+  return rows
+    .map((row, index) => {
+      const documentItem = findDocument(row.document_id);
+      const filename = row.filename || documentItem?.filename || "Result";
+      const score = formatScore(row.score);
+      const matchType = row.match_type || "Semantic";
+      const relevance = row.relevance_label || "Low";
+      return [
+        `${index + 1}. ${filename} - ${relevance} - ${matchType} - score ${score}`,
+        row.snippet || "",
+      ].join("\n");
+    })
+    .join("\n\n");
+}
+
 function applySearchFilters(rows) {
   const selectedDocumentId = Number(elements.searchDocument.value || 0);
   const selectedCategory = elements.searchCategoryFilter.value;
@@ -484,6 +540,8 @@ function renderSearchResults(rows = state.lastSearchRows, emptyMessage = "No mat
   const totalCount = sourceRows.length;
   const scopedDocument = currentSelectLabel(elements.searchDocument) || "All documents";
   const scopedCategory = currentSelectLabel(elements.searchCategoryFilter) || "All categories";
+  renderSearchInsights(sourceRows, visibleRows);
+  state.lastSearchText = formatSearchCopyText(visibleRows);
 
   if (!totalCount) {
     elements.searchStats.textContent = emptyMessage;
@@ -506,16 +564,28 @@ function renderSearchResults(rows = state.lastSearchRows, emptyMessage = "No mat
       const documentItem = findDocument(row.document_id);
       const filename = row.filename || documentItem?.filename || "Result";
       const category = row.category || documentItem?.category || "Uncategorized";
+      const fileType = row.file_type || documentItem?.file_type || "doc";
       const snippet = row.snippet || row.answer || "";
+      const highlights = row.highlights || [];
+      const matchType = row.match_type || "Semantic";
+      const relevance = row.relevance_label || "Low";
+      const highlightChips = highlights.length
+        ? `<div class="highlight-row">${highlights
+            .map((term) => `<span class="chip search-highlight-chip">${escapeHtml(term)}</span>`)
+            .join("")}</div>`
+        : "";
       return `
         <article class="result-row search-result-row">
           <div class="result-row-main">
             <span class="row-title">${escapeHtml(filename)}</span>
-            <span class="row-meta">${escapeHtml(category)} - score ${escapeHtml(formatScore(row.score))}</span>
+            <span class="row-meta">${escapeHtml(category)} - ${escapeHtml(matchType)} - score ${escapeHtml(formatScore(row.score))}</span>
           </div>
-          <p>${escapeHtml(snippet)}</p>
+          <p>${renderHighlightedSnippet(snippet, highlights)}</p>
+          ${highlightChips}
           <div class="result-row-actions">
-            <span class="chip">${escapeHtml(documentItem?.file_type?.toUpperCase() || "DOC")}</span>
+            <span class="chip ${escapeHtml(relevanceTone(relevance))}">${escapeHtml(relevance)}</span>
+            <span class="chip">${escapeHtml(matchType)}</span>
+            <span class="chip">${escapeHtml(fileType.toUpperCase())}</span>
             ${row.document_id ? `<button class="button subtle" type="button" data-open-document="${row.document_id}">Open source</button>` : ""}
           </div>
         </article>
@@ -660,11 +730,15 @@ function renderSummary(payload) {
 }
 
 async function runSearch(query) {
+  const documentId = elements.searchDocument.value;
+  const category = elements.searchCategoryFilter.value;
   const payload = await apiRequest("/search", {
     method: "POST",
     body: {
       query,
       limit: Number(document.getElementById("search-limit").value || 5),
+      document_id: documentId ? Number(documentId) : null,
+      category: category || null,
     },
   });
   state.lastSearchRows = payload.results || [];
@@ -858,6 +932,10 @@ elements.categoryFilter.addEventListener("change", () => {
 
 [elements.searchDocument, elements.searchCategoryFilter, elements.searchSort].forEach((control) => {
   control.addEventListener("change", () => renderSearchResults());
+});
+
+elements.searchCopy.addEventListener("click", () => {
+  copyTextToClipboard(state.lastSearchText, "Search results copied.");
 });
 
 document.addEventListener("click", async (event) => {

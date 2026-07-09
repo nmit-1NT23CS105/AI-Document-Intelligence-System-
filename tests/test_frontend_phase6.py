@@ -123,6 +123,8 @@ def test_frontend_ai_workbench_has_professional_search_chat_summary_controls(tmp
     assert 'id="search-category-filter"' in html
     assert 'id="search-sort"' in html
     assert 'id="search-stats"' in html
+    assert 'id="search-insights"' in html
+    assert 'id="search-copy"' in html
     assert 'id="search-results-header"' in html
 
     assert 'id="chat-mode"' in html
@@ -138,6 +140,8 @@ def test_frontend_ai_workbench_has_professional_search_chat_summary_controls(tmp
     assert "<dt>Mode</dt><dd>Balanced</dd>" not in html
 
     assert "function renderSearchResults" in js
+    assert "function renderSearchInsights" in js
+    assert "function renderHighlightedSnippet" in js
     assert "function renderChatCitations" in js
     assert "function clearChatThread" in js
     assert "function renderSummaryInsights" in js
